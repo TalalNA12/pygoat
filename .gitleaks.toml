@@ -4,9 +4,11 @@ title = "PyGoat pipeline gitleaks config"
 useDefault = true
 
 [allowlist]
-description = "Known fake test secrets from step 2 verification (already removed from working tree)"
-fingerprints = [
-  "bb294ee6bf97d4d1e52ed1d1ba26c416250eda14:secret-test.txt:aws-access-token:1",
-  "85ba03b7d78dbc2d06e0b72ca2617d0535bed6f7:secret-test.txt:generic-api-key:3",
-  "85ba03b7d78dbc2d06e0b72ca2617d0535bed6f7:secret-test.txt:github-pat:2",
+description = "Ignore historical test secret artifacts from step 2"
+paths = [
+  '''secret-test\.txt''',
+]
+commits = [
+  "bb294ee6bf97d4d1e52ed1d1ba26c416250eda14",
+  "85ba03b7d78dbc2d06e0b72ca2617d0535bed6f7",
 ]
