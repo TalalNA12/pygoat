@@ -1,0 +1,14 @@
+title = "PyGoat pipeline gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Ignore historical test secret artifacts from step 2"
+paths = [
+  '''secret-test\.txt''',
+]
+commits = [
+  "bb294ee6bf97d4d1e52ed1d1ba26c416250eda14",
+  "85ba03b7d78dbc2d06e0b72ca2617d0535bed6f7",
+]

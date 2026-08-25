@@ -1,153 +1,88 @@
-# PyGoat
-<!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-9-orange.svg?style=flat-square)](#contributors-)
-<!-- ALL-CONTRIBUTORS-BADGE:END -->
+# IronGate: Automated CI/CD Security Pipeline
 
-intentionally vuln web Application Security in django.
-our roadmap build intentionally vuln web Application in django. The Vulnerability can based on OWASP top ten
-<br>
+> **IronGate** is an automated, shift-left DevSecOps pipeline implemented within GitHub Actions. It enforces defense-in-depth application security by integrating automated static analysis, dependency auditing, container scanning, secret detection, and dynamic runtime testing as mandatory quality gates before merging into the production branch.
 
-Table of Contents
-=================
+---
 
-* [pygoat](#pygoat)
-   * [Installation](#installation)
-      * [From Sources](#from-sources)
-      * [Docker Container](#docker-container)
-      * [Installation Video](#installation-video)
-   * [Uninstallation](#uninstallation)
-   * [Solutions](/Solutions/solution.md)
-   * [For Developers](/docs/dev_guide.md)
+## 🏛️ Architecture Overview
 
-## Installation
+The pipeline intercepts vulnerabilities across the entire Software Development Life Cycle (SDLC) using a multi-stage automated workflow:
 
-### From Sources
-
-To setup the project on your local machine:
-<br>
-
-First, Clone the repository using GitHub website or git in Terminal
-```
-  git clone https://github.com/adeyosemanputra/pygoat.git
-  ### To Download a specific branch
-  git clone -b <branch_name> https://github.com/adeyosemanputra/pygoat.git
-```
-### Windows Notes (PowerShell users)
-
-- PyGoat is tested primarily on Linux/macOS. Windows users are recommended to use:
-  - **Docker Desktop** (preferred), or
-  - **WSL2 (Ubuntu)** for smoother setup.
-- On some Windows environments, the `python3` command may not be available by default.
-  - If `python3` is not recognized, try using `python` instead (ensure it points to Python 3.x).
-- Ensure Python version is **3.10 or 3.11** for best compatibility.
-- Some labs rely on Unix-style commands and may behave differently on native Windows shells.
+[ Developer Commit / PR ]
+│
+▼
+┌──────────────────────────────────────────────────────────┐
+│                   IronGate CI/CD Pipeline                 │
+├──────────────────────────┬───────────────────────────────┤
+│ 1. Secret Scanning       │ Gitleaks + Push Protection    │
+│ 2. SAST                  │ Semgrep (OWASP / Django / Py) │
+│ 3. Dependency (SCA)      │ pip-audit (PyPI / OSV)        │
+│ 4. Container Scanning    │ Trivy (Base Image & Packages) │
+│ 5. DAST                  │ OWASP ZAP (Baseline Scan)     │
+└──────────────────────────┴───────────────────────────────┘
+│
+▼
+┌──────────────────────────────────────────────────────────┐
+│      Policy Gate: GitHub Branch Protection Rules         │
+│  (Blocks merge to 'master' on required status failures)  │
+└──────────────────────────────────────────────────────────┘
 
 
-#### Method 1
+---
 
-1. Install all app and python requirements using installer file - `bash installer.sh`
-2. Apply the migrations `python3 manage.py migrate`.<br>
-3. Finally, run the development server `python3 manage.py runserver`.<br>
-4. The project will be available at <http://127.0.0.1:8000> 
+## 🔒 Security Stages & Controls
 
-#### Method 2
+### 1. Secret Detection & Verification
+* **Engine:** `Gitleaks` via GitHub Actions + GitHub Native Push Protection.
+* **Mechanism:** Scans full commit history (`fetch-depth: 0`) and pull request diff ranges using entropy analysis and regex pattern matching.
+* **Triage & Fine-Tuning:** Uses `.gitleaks.toml` with granular path and commit-hash allowlisting to prevent false positives from historical verification tests without disabling core rules.
 
-1. Install python3 requirements `pip install -r requirements.txt`.<br> 
-2. Apply the migrations `python3 manage.py migrate`.<br>
-3. Finally, run the development server `python3 manage.py runserver`.<br>
-4. The project will be available at <http://127.0.0.1:8000> 
+### 2. Static Application Security Testing (SAST)
+* **Engine:** `Semgrep`
+* **Rulesets:** `p/owasp-top-ten`, `p/python`, `p/Django`
+* **Mechanism:** Converts source code into Abstract Syntax Trees (AST) to detect structural flaws, including SQL Injection (SQLi), Command Injection, Insecure Deserialization, Cross-Site Scripting (XSS), and exposed debug configurations.
 
-#### Method 3
+### 3. Software Composition Analysis (SCA)
+* **Engine:** `pip-audit`
+* **Database:** PyPI Advisory Database and Open Source Vulnerabilities (OSV).
+* **Mechanism:** Scans third-party package dependencies and sub-dependencies for known CVEs and flags required patched versions.
 
-1. Install all app and python requirements using `setup.py` file - `pip3 install .`
-2. Apply the migrations `python3 manage.py migrate`.<br>
-3. Finally, run the development server `python3 manage.py runserver`.<br>
-4. The project will be available at <http://127.0.0.1:8000> 
+### 4. Container Image & Configuration Scanning
+* **Engine:** `Trivy`
+* **Hardening Decisions:**
+  * Upgraded vulnerable legacy base images to `python:3.12-slim-bookworm`.
+  * Resolved Dockerfile linting finding `DS-0002` by dropping root execution and enforcing non-root runtime permissions (`USER pygoat`).
+* **CI Gating:** Filtered to fail builds exclusively on `CRITICAL,HIGH` severity findings to eliminate low-signal noise.
 
-### Docker Container
-1. Install [Docker](https://www.docker.com)
-2. Run `docker pull pygoat/pygoat` or `docker pull pygoat/pygoat:latest`
-3. Run `docker run --rm -p 8000:8000 pygoat/pygoat:latest`
-4. Browse to <http://127.0.0.1:8000> 
-5. Remove existing image using `docker image rm pygoat/pygoat` and pull again incase of any error
+### 5. Dynamic Application Security Testing (DAST)
+* **Engine:** `OWASP ZAP` (ZAP Baseline Action)
+* **Mechanism:** Spins up the application container in the background during CI, validates availability via an active `curl` health-check polling loop, and dynamically crawls the live running application for runtime issues, missing security headers, and cookie flags.
 
-### From Docker-Compose 
-1. Install [Docker](https://www.docker.com)
-2. Run `docker-compose up` or `docker-compose up -d`
+---
 
-## Populate Challenge Data
+## 🛑 Policy Enforcement & Merge Gates
 
-PyGoat stores challenge definitions in `challenge/challenge.json`.
-To populate the `Challenge` table in the database from this file, use the
-built-in Django management command:
+To prevent insecure code from entering production, the repository enforces **Branch Protection Rulesets** on the default branch:
 
-### Using Docker Compose
+* **Enforced Pull Requests:** Direct commits to `master` are blocked.
+* **Required Status Checks:** Every pipeline check (`gitleaks`, `semgrep`, `pip-audit`, `trivy`, `zap`) must return a successful exit code before the merge button unlocks.
+* **Fail-Closed Security:** Unpatched vulnerabilities natively halt the deployment workflow at the pull request stage.
 
-```bash
-docker compose exec web python manage.py populate_challenges
+---
 
+## 🛠️ Tech Stack & Tooling
 
-### Build Docker Image and Run
-1. Clone the repository  &ensp; `git clone https://github.com/adeyosemanputra/pygoat.git` 
-2. Build the docker image from Dockerfile using &ensp; `docker build -f Dockerfile -t pygoat .`
-3. Run the docker image &ensp;`docker run --rm -p 8000:8000 pygoat:latest`
-4. Browse to <http://127.0.0.1:8000> or <http://0.0.0.0:8000> 
+| Domain | Technology |
+| :--- | :--- |
+| **CI/CD Platform** | GitHub Actions |
+| **Secret Scanning** | Gitleaks |
+| **SAST** | Semgrep |
+| **SCA / Dependency Audit** | pip-audit |
+| **Container Scanning** | Trivy |
+| **DAST** | OWASP ZAP |
+| **Container Engine** | Docker |
+| **Target Application** | OWASP PyGoat (Intentionally Vulnerable Lab App) |
 
-### Installation video 
+---
 
-1. From Source using `installer.sh`
- - [Installing PyGoat from Source](https://www.youtube.com/watch?v=7bYBJXG3FRQ)
-2. Without using `installer.sh`
- - [![](http://img.youtube.com/vi/rfzQiMeiwso/0.jpg)](http://www.youtube.com/watch?v=rfzQiMeiwso "Installation Pygoat")
-3. Install with Mac M1 (using Virtualenv)
- - [![](http://img.youtube.com/vi/rfzQiMeiwso/0.jpg)](https://youtu.be/a5UV7mUw580 "Install with Mac M1 - using Virtualenv")
-
-
-## Uninstallation
-
-### On Debian/Ubuntu Based Systems
-- On Debian/Ubuntu based systems, you can use the `uninstaller.sh` script to uninstall `pygoat` along with all it's dependencies.
-- To uninstall `pygoat`, simply run:
-```bash
-$ bash ./uninstaller.sh
-```
-
-### On Other Systems
-- On other systems, you can use the `uninstaller.py` script to uninstall `pygoat` along with all it's dependencies
-- To uninstall `pygoat`, simply run:
-```bash
-$ python3 uninstaller.py
-```
-
-## Solutions 
-<a href="/Solutions/solution.md">Solutions to all challenges</a>
-
-## Contributors ✨
-
-Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
-
-<!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
-<!-- prettier-ignore-start -->
-<!-- markdownlint-disable -->
-<table>
-  <tr>
-    <td align="center"><a href="https://github.com/pwned-17"><img src="https://avatars.githubusercontent.com/u/61360833?v=4?s=100" width="100px;" alt=""/><br /><sub><b>pwned-17</b></sub></a><br /><a href="https://github.com/adeyosemanputra/pygoat/commits?author=pwned-17" title="Code">💻</a></td>
-    <td align="center"><a href="https://github.com/prince-7"><img src="https://avatars.githubusercontent.com/u/53997924?v=4?s=100" width="100px;" alt=""/><br /><sub><b>Aman Singh</b></sub></a><br /><a href="https://github.com/adeyosemanputra/pygoat/commits?author=prince-7" title="Code">💻</a></td>
-    <td align="center"><a href="https://github.com/adeyosemanputra"><img src="https://avatars.githubusercontent.com/u/24958168?v=4?s=100" width="100px;" alt=""/><br /><sub><b>adeyosemanputra</b></sub></a><br /><a href="https://github.com/adeyosemanputra/pygoat/commits?author=adeyosemanputra" title="Code">💻</a> <a href="https://github.com/adeyosemanputra/pygoat/commits?author=adeyosemanputra" title="Documentation">📖</a></td>
-    <td align="center"><a href="https://github.com/gaurav618618"><img src="https://avatars.githubusercontent.com/u/29380890?v=4?s=100" width="100px;" alt=""/><br /><sub><b>gaurav618618</b></sub></a><br /><a href="https://github.com/adeyosemanputra/pygoat/commits?author=gaurav618618" title="Code">💻</a> <a href="https://github.com/adeyosemanputra/pygoat/commits?author=gaurav618618" title="Documentation">📖</a></td>
-    <td align="center"><a href="https://github.com/kUSHAL0601"><img src="https://avatars.githubusercontent.com/u/29600964?v=4?s=100" width="100px;" alt=""/><br /><sub><b>MajAK</b></sub></a><br /><a href="https://github.com/adeyosemanputra/pygoat/commits?author=kUSHAL0601" title="Code">💻</a></td>
-    <td align="center"><a href="https://github.com/JustinDPerkins"><img src="https://avatars.githubusercontent.com/u/60413733?v=4?s=100" width="100px;" alt=""/><br /><sub><b>JustinPerkins</b></sub></a><br /><a href="https://github.com/adeyosemanputra/pygoat/commits?author=JustinDPerkins" title="Code">💻</a></td>
-    <td align="center"><a href="https://github.com/Hkakashi"><img src="https://avatars.githubusercontent.com/u/43193113?v=4?s=100" width="100px;" alt=""/><br /><sub><b>Liu Peng</b></sub></a><br /><a href="https://github.com/adeyosemanputra/pygoat/commits?author=Hkakashi" title="Code">💻</a></td>
-  </tr>
-  <tr>
-    <td align="center"><a href="https://github.com/RupakBiswas-2304"><img src="https://avatars.githubusercontent.com/u/75058161?v=4?s=100" width="100px;" alt=""/><br /><sub><b>Metaphor</b></sub></a><br /><a href="https://github.com/adeyosemanputra/pygoat/commits?author=RupakBiswas-2304" title="Code">💻</a></td>
-    <td align="center"><a href="https://whokilleddb.github.io"><img src="https://avatars.githubusercontent.com/u/56482137?v=4?s=100" width="100px;" alt=""/><br /><sub><b>whokilleddb</b></sub></a><br /><a href="https://github.com/adeyosemanputra/pygoat/commits?author=whokilleddb" title="Code">💻</a></td>
-  </tr>
-</table>
-
-<!-- markdownlint-restore -->
-<!-- prettier-ignore-end -->
-
-<!-- ALL-CONTRIBUTORS-LIST:END -->
-
-This project follows the [all-contributors](https://github.com/all-contributors/all-contributors) specification. Contributions of any kind welcome!
+> *Note: This repository uses OWASP PyGoat as a testbed application to demonstrate automated security detection, CI triage, and policy enforcement mechanisms.*
